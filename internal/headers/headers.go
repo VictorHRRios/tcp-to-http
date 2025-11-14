@@ -3,10 +3,27 @@ package headers
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
 type Headers map[string]string
+
+func (h Headers) Get(key string) string {
+	return h[strings.ToLower(key)]
+}
+
+func (h Headers) GetContentLength() (int, error) {
+	contentLengthString := h.Get("Content-Length")
+	if contentLengthString == "" {
+		return 0, nil
+	}
+	contentLength, err := strconv.Atoi(contentLengthString)
+	if err != nil {
+		return 0, fmt.Errorf("content length could not be parsed to integer: %s\n", err)
+	}
+	return contentLength, nil
+}
 
 func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	firstNewLine := bytes.Index(data, []byte("\r\n"))
@@ -14,7 +31,7 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 		return 0, false, nil
 	}
 	if firstNewLine == 0 {
-		return 0, true, nil
+		return 2, true, nil
 	}
 
 	requestLine := data[:firstNewLine]

@@ -4,15 +4,15 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
-
 	"github.com/VictorHRRios/http/internal/headers"
+	"io"
 )
 
 type Request struct {
 	RequestLine RequestLine
 	State       int
 	Headers     headers.Headers
+	Body        []byte
 }
 
 type RequestLine struct {
@@ -33,6 +33,7 @@ const (
 	_ = iota
 	requestStateInitialized
 	requestStateParsingHeaders
+	requestStateParsingBody
 	requestStateDone
 )
 
@@ -57,15 +58,6 @@ func (r *Request) parse(data []byte) (int, error) {
 }
 func (r *Request) parseSingle(data []byte) (int, error) {
 	switch r.State {
-	case requestStateParsingHeaders:
-		n, done, err := r.Headers.Parse(data)
-		if err != nil {
-			return 0, err
-		}
-		if done {
-			r.State = requestStateDone
-		}
-		return n, nil
 	case requestStateInitialized:
 		parsed, n, err := parseRequestLine(data)
 		if err != nil {
@@ -77,6 +69,36 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 		r.RequestLine = parsed.RequestLine
 		r.State = requestStateParsingHeaders
 		return n, nil
+	case requestStateParsingHeaders:
+		n, done, err := r.Headers.Parse(data)
+		if err != nil {
+			return 0, err
+		}
+		if done {
+			r.State = requestStateParsingBody
+		}
+		return n, nil
+	case requestStateParsingBody:
+		oldLength := len(r.Body)
+		contentLength, err := r.Headers.GetContentLength()
+		if err != nil {
+			return 0, err
+		}
+		if contentLength == 0 {
+			r.State = requestStateDone
+			return 0, nil
+		}
+		for _, value := range data {
+			r.Body = append(r.Body, value)
+		}
+		lengthOfBody := len(r.Body)
+		if lengthOfBody > contentLength {
+			return 0, fmt.Errorf("content length does not match body length, got=%d, expected=%d\n", len(r.Body), contentLength)
+		}
+		if lengthOfBody == contentLength {
+			r.State = requestStateDone
+		}
+		return lengthOfBody - oldLength, nil
 	case requestStateDone:
 		return 0, fmt.Errorf("error: trying to read data in done state")
 	default:
@@ -95,6 +117,13 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		read, err := reader.Read(buf[readToIndex:])
 		if err != nil {
 			if errors.Is(err, io.EOF) {
+				bodyLength, err := request.Headers.GetContentLength()
+				if err != nil {
+					return nil, err
+				}
+				if bodyLength != len(request.Body) {
+					return nil, fmt.Errorf("content length does not match body length, got=%d, expected=%d\n", len(request.Body), bodyLength)
+				}
 				request.State = requestStateDone
 				break
 			}
