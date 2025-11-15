@@ -2,12 +2,15 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -26,26 +29,35 @@ func main() {
 		var buff bytes.Buffer
 		after, found := strings.CutPrefix(req.RequestLine.RequestTarget, "/httpbin")
 		if found {
+
+			t := headers.NewHeaders()
+			t.Set("X-Content-SHA256", "0")
+			t.Set("X-Content-Length", "0")
 			h.Del("content-length")
 			h.Set("transfer-encoding", "chunked")
 			w.WriteStatusLine(response.StatusOk)
 			w.WriteHeaders(h)
+			w.AddTrailers(t)
 			resp, err := http.Get("https://httpbin.org" + after)
 			if err != nil {
 				fmt.Print(err)
 			}
 			defer resp.Body.Close()
 			buff := make([]byte, 1024)
+			buffRead := bytes.Buffer{}
+			w.WriteBody([]byte{})
 			for {
 				n, err := resp.Body.Read(buff)
 				w.ChunkSize = n
 				if n > 0 {
-					fmt.Printf("read %d\n", n)
-					fmt.Printf("buff %s\n", string(buff))
 					w.WriteChunkedBody(buff[:n])
 				}
+				buffRead.Write(buff[:n])
 				if err != nil {
 					if err == io.EOF {
+						read := sha256.Sum256(buffRead.Bytes())
+						w.Trailers.Set("X-Content-SHA256", hex.EncodeToString(read[:]))
+						w.Trailers.Set("X-Content-Length", strconv.Itoa(buffRead.Len()))
 						w.WriteChunkedBodyDone()
 						break
 					}

@@ -76,7 +76,7 @@ func (h Headers) Add(key, value string) {
 	if existing, ok := h[strings.ToLower(key)]; ok {
 		value = fmt.Sprintf("%s, %s", existing, value)
 	}
-	h[key] = value
+	h[strings.ToLower(key)] = value
 }
 
 func NewHeaders() Headers {

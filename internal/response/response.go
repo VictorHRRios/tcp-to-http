@@ -28,6 +28,7 @@ type Writer struct {
 	WriterState int
 	Conn        net.Conn
 	Headers     headers.Headers
+	Trailers    headers.Headers
 	StatusCode  StatusCode
 	ChunkSize   int
 }
@@ -48,29 +49,51 @@ func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
 		return 0, err
 	}
 
-	n, err := w.WriteBody(buff.Bytes())
+	n, err := w.Conn.Write(buff.Bytes())
 	if err != nil {
 		return 0, err
 	}
 	return n, nil
 }
 
+func (w *Writer) AddTrailers(h headers.Headers) {
+	w.Trailers = h
+	for key := range h {
+		w.Headers.Add("Trailer", key)
+	}
+}
+
 func (w *Writer) WriteChunkedBodyDone() (int, error) {
 	var buff bytes.Buffer
 	var err error
+	bufferRead := 0
 	_, err = buff.WriteString("0\r\n")
 	if err != nil {
 		return 0, err
+	}
+	n, err := w.Conn.Write(buff.Bytes())
+	if err != nil {
+		return 0, err
+	}
+	bufferRead += n
+
+	buff.Reset()
+	if len(w.Trailers) != 0 {
+		err := WriteHeaders(w.Conn, w.Trailers)
+		if err != nil {
+			return 0, err
+		}
 	}
 	_, err = buff.WriteString("\r\n")
 	if err != nil {
 		return 0, err
 	}
-	n, err := w.WriteBody(buff.Bytes())
+	n, err = w.Conn.Write(buff.Bytes())
 	if err != nil {
 		return 0, err
 	}
-	return n, nil
+	bufferRead += n
+	return bufferRead, nil
 }
 
 func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
