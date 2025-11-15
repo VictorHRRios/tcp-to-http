@@ -36,10 +36,10 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 
 	requestLine := data[:firstNewLine]
 	trimmedRL := bytes.Trim(requestLine, " ")
-	if bytes.Count(trimmedRL, []byte(" ")) != 1 {
-		return 0, false, fmt.Errorf("error: extra spacing in key values")
-	}
 	endOfKeyValue := bytes.IndexByte(trimmedRL, ':')
+	if trimmedRL[endOfKeyValue+1] != ' ' && trimmedRL[endOfKeyValue+2] == ' ' {
+		return 0, false, fmt.Errorf("error: extra spacing in key values: %s\n", string(trimmedRL))
+	}
 	keyByte := trimmedRL[:endOfKeyValue]
 	if !keyIsValid(keyByte) {
 		return 0, false, fmt.Errorf("error key:%s violates constraints", keyByte)

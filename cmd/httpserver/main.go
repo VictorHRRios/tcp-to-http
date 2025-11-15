@@ -73,6 +73,14 @@ func main() {
 		case "/myproblem":
 			buff.WriteString(htmlBodyISE)
 			w.WriteStatusLine(response.StatusInternalServerError)
+		case "/video":
+			h.Set("content-type", "video/mp4")
+			read, err := os.ReadFile("assets/vim.mp4")
+			if err != nil {
+				fmt.Printf("error reading file: %s\n",err)
+			}
+			buff.Write(read)
+			w.WriteStatusLine(response.StatusOk)
 		default:
 			buff.WriteString(htmlBodyOk)
 			w.WriteStatusLine(response.StatusOk)
