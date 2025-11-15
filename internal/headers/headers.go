@@ -68,6 +68,10 @@ func (h Headers) Set(key, value string) {
 	h[strings.ToLower(key)] = value
 }
 
+func (h Headers) Del(key string) {
+	delete(h, key)
+}
+
 func (h Headers) Add(key, value string) {
 	if existing, ok := h[strings.ToLower(key)]; ok {
 		value = fmt.Sprintf("%s, %s", existing, value)

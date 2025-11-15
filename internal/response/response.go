@@ -1,6 +1,7 @@
 package response
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -28,6 +29,48 @@ type Writer struct {
 	Conn        net.Conn
 	Headers     headers.Headers
 	StatusCode  StatusCode
+	ChunkSize   int
+}
+
+func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
+	var buff bytes.Buffer
+	var err error
+	_, err = buff.WriteString(fmt.Sprintf("%X\r\n", w.ChunkSize))
+	if err != nil {
+		return 0, err
+	}
+	_, err = buff.Write(p)
+	if err != nil {
+		return 0, err
+	}
+	_, err = buff.Write([]byte("\r\n"))
+	if err != nil {
+		return 0, err
+	}
+
+	n, err := w.WriteBody(buff.Bytes())
+	if err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
+func (w *Writer) WriteChunkedBodyDone() (int, error) {
+	var buff bytes.Buffer
+	var err error
+	_, err = buff.WriteString("0\r\n")
+	if err != nil {
+		return 0, err
+	}
+	_, err = buff.WriteString("\r\n")
+	if err != nil {
+		return 0, err
+	}
+	n, err := w.WriteBody(buff.Bytes())
+	if err != nil {
+		return 0, err
+	}
+	return n, nil
 }
 
 func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
@@ -55,7 +98,9 @@ func (w *Writer) WriteBody(p []byte) (int, error) {
 	if err := WriteStatusLine(w.Conn, w.StatusCode); err != nil {
 		return 0, err
 	}
-	w.Headers.Set("content-length", strconv.Itoa(len(p)))
+	if _, ok := w.Headers["transfer-encoding"]; !ok {
+		w.Headers.Set("content-length", strconv.Itoa(len(p)))
+	}
 	if err := WriteHeaders(w.Conn, w.Headers); err != nil {
 		return 0, err
 	}

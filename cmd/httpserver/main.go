@@ -3,9 +3,12 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/VictorHRRios/http/internal/headers"
@@ -21,6 +24,36 @@ func main() {
 		h := headers.NewHeaders()
 		h.Set("content-type", "text/html")
 		var buff bytes.Buffer
+		after, found := strings.CutPrefix(req.RequestLine.RequestTarget, "/httpbin")
+		if found {
+			h.Del("content-length")
+			h.Set("transfer-encoding", "chunked")
+			w.WriteStatusLine(response.StatusOk)
+			w.WriteHeaders(h)
+			resp, err := http.Get("https://httpbin.org" + after)
+			if err != nil {
+				fmt.Print(err)
+			}
+			defer resp.Body.Close()
+			buff := make([]byte, 1024)
+			for {
+				n, err := resp.Body.Read(buff)
+				w.ChunkSize = n
+				if n > 0 {
+					fmt.Printf("read %d\n", n)
+					fmt.Printf("buff %s\n", string(buff))
+					w.WriteChunkedBody(buff[:n])
+				}
+				if err != nil {
+					if err == io.EOF {
+						w.WriteChunkedBodyDone()
+						break
+					}
+					fmt.Print(err)
+				}
+			}
+			return
+		}
 		switch req.RequestLine.RequestTarget {
 		case "/yourproblem":
 			buff.WriteString(htmlBodyBR)
