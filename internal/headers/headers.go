@@ -46,10 +46,7 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	}
 	key := strings.ToLower(string(keyByte))
 	value := string(trimmedRL[endOfKeyValue+2:])
-	if existing, ok := h[key]; ok {
-		value = fmt.Sprintf("%s, %s", existing, value)
-	}
-	h[key] = value
+	h.Add(key, value)
 	return firstNewLine + 2, false, nil
 }
 
@@ -65,6 +62,17 @@ func keyIsValid(key []byte) bool {
 		}
 	}
 	return true
+}
+
+func (h Headers) Set(key, value string) {
+	h[strings.ToLower(key)] = value
+}
+
+func (h Headers) Add(key, value string) {
+	if existing, ok := h[strings.ToLower(key)]; ok {
+		value = fmt.Sprintf("%s, %s", existing, value)
+	}
+	h[key] = value
 }
 
 func NewHeaders() Headers {

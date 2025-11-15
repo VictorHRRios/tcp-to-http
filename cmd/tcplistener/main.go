@@ -28,13 +28,15 @@ func main() {
 		if err != nil {
 			log.Printf("error: %s\n", err.Error())
 		}
-		fmt.Printf("\nRequest line:\n- Method: %s\n- Target: %s\n- Version: %s\n",
+		fmt.Printf("Request line:\n- Method: %s\n- Target: %s\n- Version: %s\n",
 			request.RequestLine.Method,
 			request.RequestLine.RequestTarget,
 			request.RequestLine.HttpVersion,
 		)
+		fmt.Println("Headers:")
 		for key, value := range request.Headers {
-			fmt.Printf("Headers:\n- %s: %s\n", key, value)
+			fmt.Printf("- %s: %s\n", key, value)
 		}
+		fmt.Printf("Body:\n%s", string(request.Body))
 	}
 }
